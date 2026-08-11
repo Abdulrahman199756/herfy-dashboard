@@ -113,7 +113,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:
 }
 .filter-group select:focus,.filter-group input:focus{border-color:var(--red);}
 .preset-row{display:flex;gap:6px;flex-wrap:wrap;}
-.preset-btn{background:#0e0e11;border:1px solid var(--line);color:var(--muted);padding:8px 12px;border-radius:7px;font-size:12.5px;cursor:pointer;font-family:'Inter';}
+.preset-btn{background:#0e0e11;border:1px solid var(--line);color:var(--muted);padding:8px 12px;border-radius:7px;font-size:12.5px;cursor:pointer;font-family:'Inter';transition:background-color .15s,color .15s,border-color .15s;}
 .preset-btn.active{background:var(--red);border-color:var(--red);color:#fff;}
 .custom-dates{display:none;gap:10px;}
 .custom-dates.show{display:flex;}
@@ -121,12 +121,14 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:
 /* KPI cards */
 .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
 @media(max-width:900px){.kpi-grid{grid-template-columns:repeat(2,1fr);}}
-.kpi-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden;}
+.kpi-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden;transition:border-color .15s, transform .15s, box-shadow .15s;}
 .kpi-card::after{content:"";position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--line);}
+.kpi-card:hover{border-color:#3a3a42;transform:translateY(-2px);box-shadow:0 8px 20px rgba(0,0,0,0.28);}
 .kpi-label{font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;}
 .kpi-value{font-size:30px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;}
 .kpi-sub{margin-top:9px;display:flex;align-items:center;gap:8px;font-size:12.5px;}
 .kpi-compare{margin-top:6px;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;}
+.kpi-spark{height:34px;margin-top:10px;margin-left:-4px;margin-right:-4px;}
 .badge{padding:2px 8px;border-radius:20px;font-weight:600;font-size:11.5px;}
 .badge.pos{background:rgba(62,207,142,0.15);color:var(--good);}
 .badge.neg{background:rgba(255,92,92,0.15);color:var(--bad);}
@@ -135,7 +137,8 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:
 /* Panels */
 .grid2{display:grid;grid-template-columns:1.6fr 1fr;gap:16px;margin-bottom:16px;}
 @media(max-width:1000px){.grid2{grid-template-columns:1fr;}}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;transition:border-color .15s;}
+.panel:hover{border-color:#333339;}
 .panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
 .panel-title{font-family:'Barlow Condensed';font-weight:700;font-size:16px;letter-spacing:0.3px;text-transform:uppercase;color:var(--text);}
 .panel-title .accent{color:var(--red);}
@@ -149,10 +152,17 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:
 .table-scroll thead th{position:sticky;top:0;background:var(--panel);z-index:1;}
 table{width:100%;border-collapse:collapse;font-size:13px;}
 th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;padding:8px 6px;border-bottom:1px solid var(--line);}
+th.sortable{cursor:pointer;user-select:none;transition:color .15s;}
+th.sortable:hover{color:var(--text);}
 td{padding:9px 6px;border-bottom:1px solid #202024;}
 tr:last-child td{border-bottom:none;}
-tbody tr{transition:background-color .1s;}
+tbody tr{transition:background-color .1s;animation:rowFadeIn .25s ease both;}
 tbody tr:hover{background:rgba(255,255,255,0.025);}
+.ranking-row{cursor:pointer;}
+@keyframes rowFadeIn{from{opacity:0;transform:translateY(3px);}to{opacity:1;transform:translateY(0);}}
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:0.001ms !important;animation-iteration-count:1 !important;transition-duration:0.001ms !important;}
+}
 .mono-right{text-align:right;font-family:'Barlow Condensed';font-weight:600;font-size:14px;font-variant-numeric:tabular-nums;}
 .store-name{font-size:12.5px;}
 .sub-metric{color:var(--muted);font-size:11px;font-weight:500;margin-top:3px;font-variant-numeric:tabular-nums;}
@@ -163,7 +173,7 @@ tbody tr:hover{background:rgba(255,255,255,0.025);}
 .items-panel{margin-bottom:16px;}
 .items-toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
 .seg{display:flex;background:#0e0e11;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
-.seg button{background:transparent;border:none;color:var(--muted);padding:7px 14px;font-size:12.5px;cursor:pointer;font-family:'Inter';}
+.seg button{background:transparent;border:none;color:var(--muted);padding:7px 14px;font-size:12.5px;cursor:pointer;font-family:'Inter';transition:background-color .15s,color .15s;}
 .seg button.active{background:var(--gold);color:#1a1300;font-weight:600;}
 .rank{display:inline-flex;width:20px;height:20px;border-radius:5px;background:var(--panel2);align-items:center;justify-content:center;font-size:11px;color:var(--muted);margin-right:8px;font-family:'Barlow Condensed';}
 .rank.top1{background:var(--gold);color:#1a1300;}
@@ -392,6 +402,7 @@ let charts = {};
 let itemSortKey = 'ns';
 let rankingKey = 'ns';
 let rankingRows = [];
+let rankingSort = { field: 'metric', dir: -1 }; // dir: -1 = best-first, 1 = worst-first / A-Z
 
 const RANKING_DEFS = {
   ns:     { label: 'Net Sales',    metricHead: 'Net Sales',           shareHead: 'Var %',
@@ -451,8 +462,32 @@ function populateFilters(){
   document.querySelectorAll('#rankingSeg button').forEach(b=>{
     b.addEventListener('click', ()=>{
       document.querySelectorAll('#rankingSeg button').forEach(x=>x.classList.remove('active'));
-      b.classList.add('active'); rankingKey=b.dataset.k; renderRankingTable();
+      b.classList.add('active'); rankingKey=b.dataset.k;
+      rankingSort = { field:'metric', dir:-1 };
+      renderRankingTable();
     });
+  });
+
+  // Click a column header to sort by it; click again to flip direction.
+  document.getElementById('rankingHead').addEventListener('click', (e)=>{
+    const th = e.target.closest('th[data-sort]');
+    if (!th) return;
+    const field = th.dataset.sort;
+    if (rankingSort.field === field) rankingSort.dir *= -1;
+    else rankingSort = { field, dir: field==='store' ? 1 : -1 };
+    renderRankingTable();
+  });
+
+  // Click a store's row to jump straight to that store's own filtered view.
+  document.getElementById('rankingBody').addEventListener('click', (e)=>{
+    const tr = e.target.closest('tr[data-code]');
+    if (!tr) return;
+    const storeSel = document.getElementById('fStore');
+    if (Array.from(storeSel.options).some(o=>o.value===tr.dataset.code)){
+      storeSel.value = tr.dataset.code;
+      render();
+      document.getElementById('kpiGrid').scrollIntoView({behavior:'smooth', block:'start'});
+    }
   });
 }
 
@@ -540,7 +575,7 @@ function getRange(){
 /* ---- aggregation ---- */
 function aggregate(storeSet, startIdx, endIdx){
   const out = { ns:0, qty:0, gc:0, groups:new Array(GROUPS.length).fill(0), chans:new Array(CHANS.length).fill(0),
-                byStore:{}, byDay:{} };
+                byStore:{}, byDay:{}, byDayGC:{}, byDayDT:{} };
   for (const r of DAILY){
     const [codeRaw, day, ns, qty, gc, groups, chans] = r;
     const code = String(codeRaw);
@@ -551,8 +586,17 @@ function aggregate(storeSet, startIdx, endIdx){
     for (let i=0;i<chans.length;i++) out.chans[i]+=chans[i];
     out.byStore[code] = (out.byStore[code]||0)+ns;
     out.byDay[day] = (out.byDay[day]||0)+ns;
+    out.byDayGC[day] = (out.byDayGC[day]||0)+gc;
+    out.byDayDT[day] = (out.byDayDT[day]||0)+(chans[0]||0);
   }
   return out;
+}
+
+/* Builds an ordered [s0..e0] series from a byDay-style map, defaulting missing days to 0. */
+function seriesFromByDay(byDayMap, s0, e0){
+  const arr = [];
+  for (let d=s0; d<=e0; d++) arr.push(byDayMap[d]||0);
+  return arr;
 }
 
 function safe(name, fn){
@@ -577,7 +621,7 @@ function render(){
   document.getElementById('dataAsOf').textContent = `Data through ${fmtDate(dayToDate(MAX_DAY))} · ${codes.length} store${codes.length===1?'':'s'} in selection`;
   document.getElementById('storeCountPill').textContent = `${codes.length} store${codes.length===1?'':'s'} selected`;
 
-  safe('kpi', ()=>renderKPIs(ty, ly));
+  safe('kpi', ()=>renderKPIs(ty, ly, s0, e0));
 
   if (typeof Chart === 'undefined'){
     ['trendChart','channelChart','groupChart','dtChart'].forEach(id=>{
@@ -595,11 +639,12 @@ function render(){
   safe('items', ()=>renderItems());
 }
 
-function kpiCard(label, valueStr, tyVal, lyVal, unit){
-  let varTxt='', badgeClass='pos', compareTxt='';
+function kpiCard(label, valueStr, tyVal, lyVal, unit, sparkId){
+  let varTxt='', badgeClass='pos', compareTxt='', arrow='';
   if (lyVal!==0 && isFinite(lyVal)){
     const varPct = (tyVal-lyVal)/Math.abs(lyVal);
     badgeClass = varPct>=0 ? 'pos':'neg';
+    arrow = varPct>=0 ? '▲ ' : '▼ ';
     varTxt = fmtPct(varPct)+' vs LY';
     const delta = tyVal-lyVal;
     const sign = delta>=0 ? '+' : '';
@@ -614,11 +659,33 @@ function kpiCard(label, valueStr, tyVal, lyVal, unit){
   return `<div class="kpi-card">
     <div class="kpi-label">${label}</div>
     <div class="kpi-value">${valueStr}</div>
-    <div class="kpi-sub"><span class="badge ${badgeClass}">${varTxt}</span></div>
+    <div class="kpi-sub"><span class="badge ${badgeClass}">${arrow}${varTxt}</span></div>
     ${compareTxt ? `<div class="kpi-compare">${compareTxt}</div>` : ''}
+    <div class="kpi-spark"><canvas id="${sparkId}"></canvas></div>
   </div>`;
 }
-function renderKPIs(ty, ly){
+
+function renderSparkline(canvasId, series, positive){
+  const ctx = document.getElementById(canvasId);
+  if (!ctx || series.length<2) { if(ctx) ctx.parentElement.style.display='none'; return; }
+  const color = positive ? '#3ecf8e' : '#ff5c5c';
+  if (charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId] = new Chart(ctx, {
+    type: 'line',
+    data: { labels: series.map((_,i)=>i), datasets: [{
+      data: series, borderColor: color, borderWidth: 1.75, pointRadius: 0,
+      fill: true, backgroundColor: color+'1f', tension: 0.35,
+      pointHoverRadius: 0, pointHitRadius: 0,
+    }]},
+    options: {
+      responsive:true, maintainAspectRatio:false, animation:{duration:400},
+      plugins:{legend:{display:false}, tooltip:{enabled:false}},
+      scales:{x:{display:false}, y:{display:false}},
+      interaction:{intersect:false},
+    }
+  });
+}
+function renderKPIs(ty, ly, s0, e0){
   const avgCheckTY = ty.gc>0 ? ty.ns/ty.gc : 0;
   const avgCheckLY = ly.gc>0 ? ly.ns/ly.gc : 0;
   const dtTY = ty.chans[0]||0, dtLY = ly.chans[0]||0;
@@ -626,10 +693,25 @@ function renderKPIs(ty, ly){
   const dtPctLY = ly.ns>0 ? dtLY/ly.ns : 0;
   const grid = document.getElementById('kpiGrid');
   grid.innerHTML =
-    kpiCard('Net Sales', fmtSAR(ty.ns), ty.ns, ly.ns, 'SAR') +
-    kpiCard('Guest Count', fmtNum(ty.gc), ty.gc, ly.gc, 'count') +
-    kpiCard('Average Check', fmtNum(avgCheckTY)+' SAR', avgCheckTY, avgCheckLY, 'SAR') +
-    kpiCard('Drive-Thru Share', (dtPctTY*100).toFixed(1)+'%', dtPctTY, dtPctLY, 'pct');
+    kpiCard('Net Sales', fmtSAR(ty.ns), ty.ns, ly.ns, 'SAR', 'spark-ns') +
+    kpiCard('Guest Count', fmtNum(ty.gc), ty.gc, ly.gc, 'count', 'spark-gc') +
+    kpiCard('Average Check', fmtNum(avgCheckTY)+' SAR', avgCheckTY, avgCheckLY, 'SAR', 'spark-ac') +
+    kpiCard('Drive-Thru Share', (dtPctTY*100).toFixed(1)+'%', dtPctTY, dtPctLY, 'pct', 'spark-dt');
+
+  if (typeof Chart === 'undefined') return;
+  const nsSeries = seriesFromByDay(ty.byDay, s0, e0);
+  const gcSeries = seriesFromByDay(ty.byDayGC, s0, e0);
+  const dtDaySeries = seriesFromByDay(ty.byDayDT, s0, e0);
+  const acSeries = nsSeries.map((v,i)=> gcSeries[i]>0 ? v/gcSeries[i] : 0);
+  const dtShareSeries = nsSeries.map((v,i)=> v>0 ? dtDaySeries[i]/v : 0);
+  const nsUp = nsSeries.length>1 && nsSeries.at(-1)>=nsSeries[0];
+  const gcUp = gcSeries.length>1 && gcSeries.at(-1)>=gcSeries[0];
+  const acUp = acSeries.length>1 && acSeries.at(-1)>=acSeries[0];
+  const dtUp = dtShareSeries.length>1 && dtShareSeries.at(-1)>=dtShareSeries[0];
+  renderSparkline('spark-ns', nsSeries, nsUp);
+  renderSparkline('spark-gc', gcSeries, gcUp);
+  renderSparkline('spark-ac', acSeries, acUp);
+  renderSparkline('spark-dt', dtShareSeries, dtUp);
 }
 
 function seriesForRange(storeSet, s0, e0){
@@ -729,14 +811,24 @@ function renderRankingTable(){
   const def = RANKING_DEFS[rankingKey];
   const head = document.getElementById('rankingHead');
   const body = document.getElementById('rankingBody');
-  head.innerHTML = `<tr><th style="width:36px;"></th><th>Store</th><th style="text-align:right;">${def.metricHead}</th><th style="text-align:right;">${def.shareHead}</th></tr>`;
+  const arrow = field => rankingSort.field===field ? (rankingSort.dir===-1 ? ' ▼' : ' ▲') : '';
+  head.innerHTML = `<tr>
+    <th style="width:36px;"></th>
+    <th class="sortable" data-sort="store">Store${arrow('store')}</th>
+    <th class="sortable" style="text-align:right;" data-sort="metric">${def.metricHead}${arrow('metric')}</th>
+    <th style="text-align:right;">${def.shareHead}</th>
+  </tr>`;
   if (!rankingRows.length){
     body.innerHTML = '<tr><td class="empty-note">No data for this selection</td></tr>';
     return;
   }
-  const ranked = rankingRows.slice().sort((a,b)=>def.sortBy(b)-def.sortBy(a));
-  body.innerHTML = ranked.map((r,i)=>`<tr>
-    <td><span class="rank ${i===0?'top1':''}">${i+1}</span></td>
+  const cmp = rankingSort.field==='store'
+    ? (a,b)=> a.name.localeCompare(b.name) * rankingSort.dir
+    : (a,b)=> (def.sortBy(a)-def.sortBy(b)) * rankingSort.dir;
+  const ranked = rankingRows.slice().sort(cmp);
+  const isBestFirst = rankingSort.field==='metric' && rankingSort.dir===-1;
+  body.innerHTML = ranked.map((r,i)=>`<tr class="ranking-row" data-code="${r.code}">
+    <td><span class="rank ${i===0 && isBestFirst?'top1':''}">${i+1}</span></td>
     <td class="store-name">${r.code} - ${r.name}</td>
     <td class="mono-right">${def.metric(r)}</td>
     <td class="mono-right">${def.share(r)}</td>
