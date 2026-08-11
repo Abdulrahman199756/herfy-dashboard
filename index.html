@@ -126,6 +126,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:
 .kpi-label{font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;}
 .kpi-value{font-size:30px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;}
 .kpi-sub{margin-top:9px;display:flex;align-items:center;gap:8px;font-size:12.5px;}
+.kpi-compare{margin-top:6px;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;}
 .badge{padding:2px 8px;border-radius:20px;font-weight:600;font-size:11.5px;}
 .badge.pos{background:rgba(62,207,142,0.15);color:var(--good);}
 .badge.neg{background:rgba(255,92,92,0.15);color:var(--bad);}
@@ -154,7 +155,7 @@ tbody tr{transition:background-color .1s;}
 tbody tr:hover{background:rgba(255,255,255,0.025);}
 .mono-right{text-align:right;font-family:'Barlow Condensed';font-weight:600;font-size:14px;font-variant-numeric:tabular-nums;}
 .store-name{font-size:12.5px;}
-.sub-metric{color:var(--muted);font-size:11.5px;font-weight:500;margin-left:5px;}
+.sub-metric{color:var(--muted);font-size:11px;font-weight:500;margin-top:3px;font-variant-numeric:tabular-nums;}
 .var-tag{font-weight:700;}
 .var-tag.pos{color:var(--good);}
 .var-tag.neg{color:var(--bad);}
@@ -395,7 +396,13 @@ let rankingRows = [];
 const RANKING_DEFS = {
   ns:     { label: 'Net Sales',    metricHead: 'Net Sales',           shareHead: 'Var %',
             sortBy: r=>r.varPct,   metric: r=>fmtNum(r.ty),
-            share: r=>`<span class="var-tag ${r.varPct>=0?'pos':'neg'}">${fmtPct(r.varPct)}</span>` },
+            share: r=>{
+              const cls = r.varPct>=0?'pos':'neg';
+              const badge = `<span class="var-tag ${cls}">${fmtPct(r.varPct)}</span>`;
+              if (!(r.ly>0)) return badge;
+              const delta = r.ty-r.ly, sign = delta>=0?'+':'';
+              return `${badge}<div class="sub-metric">LY ${fmtNum(r.ly)} · ${sign}${fmtNum(delta)}</div>`;
+            } },
   dt:     { label: 'Drive-Thru',   metricHead: 'DT Sales',             shareHead: 'DT Share',
             sortBy: r=>r.dtShare,  metric: r=>fmtNum(r.dtSales),
             share: r=>`${(r.dtShare*100).toFixed(1)}%` },
@@ -588,17 +595,27 @@ function render(){
   safe('items', ()=>renderItems());
 }
 
-function kpiCard(label, valueStr, tyVal, lyVal, isPct){
-  let varTxt='', badgeClass='pos';
+function kpiCard(label, valueStr, tyVal, lyVal, unit){
+  let varTxt='', badgeClass='pos', compareTxt='';
   if (lyVal!==0 && isFinite(lyVal)){
     const varPct = (tyVal-lyVal)/Math.abs(lyVal);
     badgeClass = varPct>=0 ? 'pos':'neg';
     varTxt = fmtPct(varPct)+' vs LY';
+    const delta = tyVal-lyVal;
+    const sign = delta>=0 ? '+' : '';
+    if (unit==='pct'){
+      compareTxt = `LY ${(lyVal*100).toFixed(1)}% · ${sign}${(delta*100).toFixed(1)}pp`;
+    } else if (unit==='SAR'){
+      compareTxt = `LY ${fmtNum(lyVal)} SAR · ${sign}${fmtNum(delta)} SAR`;
+    } else {
+      compareTxt = `LY ${fmtNum(lyVal)} · ${sign}${fmtNum(delta)}`;
+    }
   } else { varTxt = 'vs LY n/a'; }
   return `<div class="kpi-card">
     <div class="kpi-label">${label}</div>
     <div class="kpi-value">${valueStr}</div>
     <div class="kpi-sub"><span class="badge ${badgeClass}">${varTxt}</span></div>
+    ${compareTxt ? `<div class="kpi-compare">${compareTxt}</div>` : ''}
   </div>`;
 }
 function renderKPIs(ty, ly){
@@ -609,10 +626,10 @@ function renderKPIs(ty, ly){
   const dtPctLY = ly.ns>0 ? dtLY/ly.ns : 0;
   const grid = document.getElementById('kpiGrid');
   grid.innerHTML =
-    kpiCard('Net Sales', fmtSAR(ty.ns), ty.ns, ly.ns) +
-    kpiCard('Guest Count', fmtNum(ty.gc), ty.gc, ly.gc) +
-    kpiCard('Average Check', fmtNum(avgCheckTY)+' SAR', avgCheckTY, avgCheckLY) +
-    kpiCard('Drive-Thru Share', (dtPctTY*100).toFixed(1)+'%', dtPctTY, dtPctLY);
+    kpiCard('Net Sales', fmtSAR(ty.ns), ty.ns, ly.ns, 'SAR') +
+    kpiCard('Guest Count', fmtNum(ty.gc), ty.gc, ly.gc, 'count') +
+    kpiCard('Average Check', fmtNum(avgCheckTY)+' SAR', avgCheckTY, avgCheckLY, 'SAR') +
+    kpiCard('Drive-Thru Share', (dtPctTY*100).toFixed(1)+'%', dtPctTY, dtPctLY, 'pct');
 }
 
 function seriesForRange(storeSet, s0, e0){
