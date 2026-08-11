@@ -124,7 +124,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:
 .kpi-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden;}
 .kpi-card::after{content:"";position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--line);}
 .kpi-label{font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;}
-.kpi-value{font-size:30px;font-weight:700;line-height:1;}
+.kpi-value{font-size:30px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;}
 .kpi-sub{margin-top:9px;display:flex;align-items:center;gap:8px;font-size:12.5px;}
 .badge{padding:2px 8px;border-radius:20px;font-weight:600;font-size:11.5px;}
 .badge.pos{background:rgba(62,207,142,0.15);color:var(--good);}
@@ -141,14 +141,20 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:
 .chart-box{position:relative;height:280px;}
 .chart-box.sm{height:230px;}
 
-.movers-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
-@media(max-width:900px){.movers-grid{grid-template-columns:1fr;}}
+.rankings-panel{margin-bottom:16px;}
+.rankings-panel .panel-head{flex-wrap:wrap;gap:10px 14px;}
+.table-scroll{max-height:480px;overflow-y:auto;}
+.table-scroll table{position:relative;}
+.table-scroll thead th{position:sticky;top:0;background:var(--panel);z-index:1;}
 table{width:100%;border-collapse:collapse;font-size:13px;}
 th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;padding:8px 6px;border-bottom:1px solid var(--line);}
 td{padding:9px 6px;border-bottom:1px solid #202024;}
 tr:last-child td{border-bottom:none;}
-.mono-right{text-align:right;font-family:'Barlow Condensed';font-weight:600;font-size:14px;}
+tbody tr{transition:background-color .1s;}
+tbody tr:hover{background:rgba(255,255,255,0.025);}
+.mono-right{text-align:right;font-family:'Barlow Condensed';font-weight:600;font-size:14px;font-variant-numeric:tabular-nums;}
 .store-name{font-size:12.5px;}
+.sub-metric{color:var(--muted);font-size:11.5px;font-weight:500;margin-left:5px;}
 .var-tag{font-weight:700;}
 .var-tag.pos{color:var(--good);}
 .var-tag.neg{color:var(--bad);}
@@ -257,16 +263,18 @@ tr:last-child td{border-bottom:none;}
       </div>
     </div>
 
-    <!-- Movers -->
-    <div class="movers-grid" id="moversWrap">
-      <div class="panel">
-        <div class="panel-head"><div class="panel-title">Top 5 <span class="accent">Store Movers</span></div></div>
-        <table><thead><tr><th>Store</th><th style="text-align:right;">Net Sales</th><th style="text-align:right;">Var %</th></tr></thead><tbody id="topMovers"></tbody></table>
+    <!-- Store Rankings -->
+    <div class="panel rankings-panel">
+      <div class="panel-head">
+        <div class="panel-title">Store <span class="accent">Rankings</span></div>
+        <div class="seg" id="rankingSeg">
+          <button data-k="ns" class="active">Net Sales</button>
+          <button data-k="dt">Drive-Thru</button>
+          <button data-k="cheese">Extra Cheese</button>
+          <button data-k="addons">Add-Ons</button>
+        </div>
       </div>
-      <div class="panel">
-        <div class="panel-head"><div class="panel-title">Bottom 5 <span class="accent">Store Movers</span></div></div>
-        <table><thead><tr><th>Store</th><th style="text-align:right;">Net Sales</th><th style="text-align:right;">Var %</th></tr></thead><tbody id="botMovers"></tbody></table>
-      </div>
+      <div class="table-scroll"><table><thead id="rankingHead"></thead><tbody id="rankingBody"></tbody></table></div>
     </div>
 
     <!-- Items -->
@@ -381,6 +389,23 @@ function enterApp(){
 /* ===================== DASHBOARD ===================== */
 let charts = {};
 let itemSortKey = 'ns';
+let rankingKey = 'ns';
+let rankingRows = [];
+
+const RANKING_DEFS = {
+  ns:     { label: 'Net Sales',    metricHead: 'Net Sales',           shareHead: 'Var %',
+            sortBy: r=>r.varPct,   metric: r=>fmtNum(r.ty),
+            share: r=>`<span class="var-tag ${r.varPct>=0?'pos':'neg'}">${fmtPct(r.varPct)}</span>` },
+  dt:     { label: 'Drive-Thru',   metricHead: 'DT Sales',             shareHead: 'DT Share',
+            sortBy: r=>r.dtShare,  metric: r=>fmtNum(r.dtSales),
+            share: r=>`${(r.dtShare*100).toFixed(1)}%` },
+  cheese: { label: 'Extra Cheese', metricHead: 'Extra Cheese Sales',   shareHead: 'Share of Sales',
+            sortBy: r=>r.cheeseShare, metric: r=>fmtNum(r.cheeseSales),
+            share: r=>`${(r.cheeseShare*100).toFixed(1)}%` },
+  addons: { label: 'Add-Ons',      metricHead: 'Add-Ons Sales',        shareHead: 'Share of Sales',
+            sortBy: r=>r.addonsShare, metric: r=>fmtNum(r.addonsSales),
+            share: r=>`${(r.addonsShare*100).toFixed(1)}%` },
+};
 
 function uniqueVals(field, filterFn){
   const idx = {area:1, city:2, type:3}[field];
@@ -413,6 +438,13 @@ function populateFilters(){
     b.addEventListener('click', ()=>{
       document.querySelectorAll('#itemSortSeg button').forEach(x=>x.classList.remove('active'));
       b.classList.add('active'); itemSortKey=b.dataset.k; renderItems();
+    });
+  });
+
+  document.querySelectorAll('#rankingSeg button').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      document.querySelectorAll('#rankingSeg button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active'); rankingKey=b.dataset.k; renderRankingTable();
     });
   });
 }
@@ -645,28 +677,53 @@ function renderDT(ty){
 }
 
 function renderMovers(codes, s0, e0, lyOffset){
-  const topBody=document.getElementById('topMovers'), botBody=document.getElementById('botMovers');
   if (codes.length<2){
-    topBody.innerHTML = '<tr><td colspan="3" class="empty-note">Select "All Stores" (or a broader area/city/type) to compare stores</td></tr>';
-    botBody.innerHTML = '';
+    rankingRows = [];
+    document.getElementById('rankingHead').innerHTML = '';
+    document.getElementById('rankingBody').innerHTML =
+      '<tr><td class="empty-note">Select "All Stores" (or a broader area/city/type) to compare stores</td></tr>';
     return;
   }
-  const rows = codes.map(code=>{
+  // GROUPS order is ['Add-Ons','Extra Cheese', ...] — see DATA.groups in the payload.
+  const ADDONS_IDX = GROUPS.indexOf('Add-Ons');
+  const CHEESE_IDX = GROUPS.indexOf('Extra Cheese');
+
+  rankingRows = codes.map(code=>{
     const set = new Set([code]);
-    const ty = aggregate(set, s0, e0).ns;
+    const tyAgg = aggregate(set, s0, e0);
     const ly = aggregate(set, s0-lyOffset, e0-lyOffset).ns;
+    const ty = tyAgg.ns;
     const varPct = ly>0 ? (ty-ly)/ly : (ty>0?1:0);
-    return { code, name: STORES[code][0], ty, ly, varPct };
+    const dtSales = tyAgg.chans[0]||0;
+    const cheeseSales = CHEESE_IDX>=0 ? (tyAgg.groups[CHEESE_IDX]||0) : 0;
+    const addonsSales = ADDONS_IDX>=0 ? (tyAgg.groups[ADDONS_IDX]||0) : 0;
+    return {
+      code, name: STORES[code][0], ty, ly, varPct, dtSales,
+      dtShare: ty>0 ? dtSales/ty : 0,
+      cheeseSales, cheeseShare: ty>0 ? cheeseSales/ty : 0,
+      addonsSales, addonsShare: ty>0 ? addonsSales/ty : 0,
+    };
   }).filter(r=>r.ty>0 || r.ly>0);
-  rows.sort((a,b)=>b.varPct-a.varPct);
-  const top5 = rows.slice(0,5);
-  const bot5 = rows.slice(-5).reverse();
-  function rowHtml(r){
-    const cls = r.varPct>=0?'pos':'neg';
-    return `<tr><td class="store-name">${r.code} - ${r.name}</td><td class="mono-right">${fmtNum(r.ty)}</td><td class="mono-right var-tag ${cls}">${fmtPct(r.varPct)}</td></tr>`;
+
+  renderRankingTable();
+}
+
+function renderRankingTable(){
+  const def = RANKING_DEFS[rankingKey];
+  const head = document.getElementById('rankingHead');
+  const body = document.getElementById('rankingBody');
+  head.innerHTML = `<tr><th style="width:36px;"></th><th>Store</th><th style="text-align:right;">${def.metricHead}</th><th style="text-align:right;">${def.shareHead}</th></tr>`;
+  if (!rankingRows.length){
+    body.innerHTML = '<tr><td class="empty-note">No data for this selection</td></tr>';
+    return;
   }
-  topBody.innerHTML = top5.map(rowHtml).join('') || '<tr><td colspan="3" class="empty-note">No data</td></tr>';
-  botBody.innerHTML = bot5.map(rowHtml).join('') || '<tr><td colspan="3" class="empty-note">No data</td></tr>';
+  const ranked = rankingRows.slice().sort((a,b)=>def.sortBy(b)-def.sortBy(a));
+  body.innerHTML = ranked.map((r,i)=>`<tr>
+    <td><span class="rank ${i===0?'top1':''}">${i+1}</span></td>
+    <td class="store-name">${r.code} - ${r.name}</td>
+    <td class="mono-right">${def.metric(r)}</td>
+    <td class="mono-right">${def.share(r)}</td>
+  </tr>`).join('');
 }
 
 function renderItems(){
