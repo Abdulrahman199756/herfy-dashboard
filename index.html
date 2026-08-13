@@ -13,6 +13,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf-autotable.min.js"></script>
 <style>
 :root{
   --bg:#0a0a0c;
@@ -226,6 +228,7 @@ tbody tr:hover{background:rgba(255,255,255,0.025);}
     <div class="topbar-spacer"></div>
     <div class="pill"><span class="dot"></span><span id="storeCountPill">42 stores</span></div>
     <div class="user-chip">
+      <button class="icon-btn" id="pdfBtn" onclick="downloadPDFReport()">Download PDF</button>
       <button class="icon-btn" onclick="doLogout()">Sign Out</button>
     </div>
   </div>
@@ -860,6 +863,187 @@ function renderItems(){
     <td class="mono-right">${fmtNum(r.qty)}</td>
     <td class="mono-right">${fmtNum(r.ns)} SAR</td>
   </tr>`).join('') || '<tr><td colspan="5" class="empty-note">No item data for this selection</td></tr>';
+}
+
+/* ===================== PDF REPORT ===================== */
+
+function rankingRowPlainShare(key, r){
+  // dt/cheese/addons share() already returns plain text; only 'ns' embeds HTML for on-screen color.
+  if (key !== 'ns') return RANKING_DEFS[key].share(r);
+  if (!(r.ly>0)) return fmtPct(r.varPct);
+  const delta = r.ty-r.ly, sign = delta>=0?'+':'';
+  return `${fmtPct(r.varPct)} (LY ${fmtNum(r.ly)}, ${sign}${fmtNum(delta)})`;
+}
+
+function addChartImage(doc, chartObj, x, y, maxW, maxH){
+  const canvas = chartObj.canvas;
+  const ratio = canvas.width / canvas.height;
+  let w = maxW, h = w / ratio;
+  if (h > maxH){ h = maxH; w = h * ratio; }
+  doc.addImage(chartObj.toBase64Image('image/png', 1.0), 'PNG', x, y, w, h);
+  return h;
+}
+
+function downloadPDFReport(){
+  const btn = document.getElementById('pdfBtn');
+  if (typeof window.jspdf === 'undefined'){
+    alert('The PDF library failed to load — check your internet connection and try again.');
+    return;
+  }
+  const origText = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Generating...';
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit:'mm', format:'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 14;
+    let y = margin;
+
+    const codes = matchedStoreCodes();
+    const storeSet = new Set(codes);
+    const [s0,e0] = getRange();
+    const lyOffset = 364;
+    const ty = aggregate(storeSet, s0, e0);
+    const ly = aggregate(storeSet, s0-lyOffset, e0-lyOffset);
+    const avgCheckTY = ty.gc>0 ? ty.ns/ty.gc : 0, avgCheckLY = ly.gc>0 ? ly.ns/ly.gc : 0;
+    const dtTY = ty.chans[0]||0, dtLY = ly.chans[0]||0;
+    const dtPctTY = ty.ns>0 ? dtTY/ty.ns : 0, dtPctLY = ly.ns>0 ? dtLY/ly.ns : 0;
+
+    const presetLabel = (PRESETS.find(p=>p.k===currentPreset)||{}).label || currentPreset;
+    const areaV=document.getElementById('fArea').value, cityV=document.getElementById('fCity').value,
+          typeV=document.getElementById('fType').value, storeV=document.getElementById('fStore').value;
+    const storeLabel = storeV==='ALL' ? null : document.getElementById('fStore').selectedOptions[0].textContent;
+    const rangeLabel = `${fmtDate(dayToDate(s0))} – ${fmtDate(dayToDate(e0))}`;
+
+    // ---- Header ----
+    doc.setFillColor(226,35,26); doc.rect(0,0,pageW,3,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor(20,20,20);
+    doc.text('HERFY — DAILY PERFORMANCE PORTAL', margin, y+8);
+    y += 15;
+    doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(110,110,110);
+    doc.text(`${presetLabel}  ·  ${rangeLabel}`, margin, y); y += 5;
+    const scopeLine = storeLabel ? `Store: ${storeLabel}` :
+      `Area: ${areaV==='ALL'?'All Areas':areaV}  ·  City: ${cityV==='ALL'?'All Cities':cityV}  ·  Type: ${typeV==='ALL'?'All Types':typeV}  ·  ${codes.length} stores`;
+    doc.text(scopeLine, margin, y); y += 5;
+    doc.text(`Generated ${new Date().toLocaleString('en-GB')}`, margin, y); y += 8;
+
+    // ---- KPI summary table ----
+    function metricRow(label, tyVal, lyVal, isPct){
+      const fmt = v => isPct ? (v*100).toFixed(1)+'%' : fmtNum(v);
+      if (!(lyVal!==0 && isFinite(lyVal))) return [label, fmt(tyVal), 'n/a', 'n/a', 'n/a'];
+      const varPct = (tyVal-lyVal)/Math.abs(lyVal);
+      const delta = tyVal-lyVal;
+      return [label, fmt(tyVal), fmt(lyVal), (delta>=0?'+':'')+fmt(delta), fmtPct(varPct)];
+    }
+    doc.autoTable({
+      startY: y,
+      head: [['Metric','This Year','Last Year','Variance','Var %']],
+      body: [
+        metricRow('Net Sales (SAR)', ty.ns, ly.ns),
+        metricRow('Guest Count', ty.gc, ly.gc),
+        metricRow('Average Check (SAR)', avgCheckTY, avgCheckLY),
+        metricRow('Drive-Thru Sales (SAR)', dtTY, dtLY),
+        metricRow('Drive-Thru % of Sales', dtPctTY, dtPctLY, true),
+      ],
+      margin: { left: margin, right: margin },
+      theme: 'grid',
+      headStyles: { fillColor: [20,20,23], textColor: 255, fontStyle: 'bold' },
+      styles: { fontSize: 9, cellPadding: 2.5 },
+      columnStyles: { 0: { fontStyle: 'bold' } },
+    });
+    y = doc.lastAutoTable.finalY + 8;
+
+    // ---- Charts ----
+    if (typeof Chart !== 'undefined' && charts.trend){
+      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(20,20,20);
+      doc.text('Net Sales Trend — TY vs LY', margin, y); y += 4;
+      y += addChartImage(doc, charts.trend, margin, y, pageW-2*margin, 55) + 8;
+
+      const halfW = (pageW - 2*margin - 8) / 2;
+      doc.text('Channel Mix', margin, y);
+      doc.text('Add-Ons & Meal Size', margin+halfW+8, y); y += 4;
+      const h2a = addChartImage(doc, charts.channel, margin, y, halfW, 55);
+      const h2b = addChartImage(doc, charts.group, margin+halfW+8, y, halfW, 55);
+      y += Math.max(h2a,h2b) + 8;
+
+      if (y > pageH-70){ doc.addPage(); y = margin; }
+      doc.text('Drive-Thru Share', margin, y); y += 4;
+      y += addChartImage(doc, charts.dt, margin, y, halfW, 50) + 8;
+    }
+
+    // ---- Store Rankings (new page) ----
+    doc.addPage(); y = margin;
+    doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(20,20,20);
+    doc.text('Store Rankings', margin, y); y += 6;
+
+    if (rankingRows.length){
+      [['ns','By Net Sales (Var % vs LY)'], ['dt','By Drive-Thru Share'],
+       ['cheese','By Extra Cheese Share'], ['addons','By Add-Ons Share']].forEach(([key,title])=>{
+        if (y > pageH-40){ doc.addPage(); y = margin; }
+        doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(20,20,20);
+        doc.text(title, margin, y); y += 3;
+        const def = RANKING_DEFS[key];
+        const ranked = rankingRows.slice().sort((a,b)=>def.sortBy(b)-def.sortBy(a));
+        doc.autoTable({
+          startY: y+2,
+          head: [['#','Store', def.metricHead, def.shareHead]],
+          body: ranked.map((r,i)=>[String(i+1), `${r.code} - ${r.name}`, def.metric(r), rankingRowPlainShare(key,r)]),
+          margin: { left: margin, right: margin },
+          theme: 'striped',
+          headStyles: { fillColor: [20,20,23], textColor: 255, fontSize: 8 },
+          styles: { fontSize: 8, cellPadding: 1.8 },
+          columnStyles: { 0: { cellWidth: 8 } },
+        });
+        y = doc.lastAutoTable.finalY + 8;
+      });
+    } else {
+      doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(110,110,110);
+      doc.text('Select "All Stores" (or a broader area/city/type) to include store rankings.', margin, y);
+      y += 8;
+    }
+
+    // ---- Item Performance (new page) ----
+    doc.addPage(); y = margin;
+    doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(20,20,20);
+    let itemRows = [], itemTitle;
+    if (storeV==='ALL'){
+      const mIdx = parseInt(document.getElementById('fMonth').value,10);
+      itemRows = ITEM_MONTH.filter(r=>r[0]===mIdx).map(r=>({item:ITEMS[r[1]], cat:r[2]>=0?CATS[r[2]]:'—', qty:r[3], ns:r[4]}));
+      itemTitle = `Item Performance — ${MONTHS[mIdx]} (Company-wide)`;
+    } else {
+      itemRows = ITEM_STORE.filter(r=>r[0]===parseInt(storeV,10)).map(r=>({item:ITEMS[r[1]], cat:r[2]>=0?CATS[r[2]]:'—', qty:r[3], ns:r[4]}));
+      itemTitle = `Item Performance — ${storeV} - ${STORES[storeV][0]} (All-Time)`;
+    }
+    itemRows.sort((a,b)=> itemSortKey==='ns' ? b.ns-a.ns : b.qty-a.qty);
+    itemRows = itemRows.slice(0,20);
+    doc.text(itemTitle, margin, y); y += 6;
+    doc.autoTable({
+      startY: y,
+      head: [['#','Item','Category','Qty Sold','Net Sales']],
+      body: itemRows.map((r,i)=>[String(i+1), r.item, r.cat, fmtNum(r.qty), fmtSAR(r.ns)]),
+      margin: { left: margin, right: margin },
+      theme: 'striped',
+      headStyles: { fillColor: [20,20,23], textColor: 255, fontSize: 9 },
+      styles: { fontSize: 8.5, cellPadding: 2 },
+    });
+
+    // ---- Footer on every page ----
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let p=1; p<=pageCount; p++){
+      doc.setPage(p);
+      doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(150,150,150);
+      doc.text('Data aggregated from Herfy POS exports · Internal use only · Not for external distribution', margin, pageH-8);
+      doc.text(`Page ${p} of ${pageCount}`, pageW-margin, pageH-8, { align:'right' });
+    }
+
+    doc.save(`Herfy_Report_${presetLabel.replace(/\s+/g,'')}_${dayToDate(e0).toISOString().slice(0,10)}.pdf`);
+  } catch(e){
+    console.error('PDF generation failed', e);
+    alert('Could not generate the PDF: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = origText;
+  }
 }
 
 function initDashboard(){
