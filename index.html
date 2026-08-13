@@ -420,12 +420,12 @@ const RANKING_DEFS = {
   dt:     { label: 'Drive-Thru',   metricHead: 'DT Sales',             shareHead: 'DT Share',
             sortBy: r=>r.dtShare,  metric: r=>fmtNum(r.dtSales),
             share: r=>`${(r.dtShare*100).toFixed(1)}%` },
-  cheese: { label: 'Extra Cheese', metricHead: 'Extra Cheese Sales',   shareHead: 'Share of Sales',
-            sortBy: r=>r.cheeseShare, metric: r=>fmtNum(r.cheeseSales),
-            share: r=>`${(r.cheeseShare*100).toFixed(1)}%` },
-  addons: { label: 'Add-Ons',      metricHead: 'Add-Ons Sales',        shareHead: 'Share of Sales',
-            sortBy: r=>r.addonsShare, metric: r=>fmtNum(r.addonsSales),
-            share: r=>`${(r.addonsShare*100).toFixed(1)}%` },
+  cheese: { label: 'Extra Cheese', metricHead: 'Extra Cheese / GC',    shareHead: '% of Dine In/Take Out/DT',
+            sortBy: r=>r.cheesePerGC, metric: r=>r.cheesePerGC.toFixed(2),
+            share: r=>`${(r.cheeseOnPremShare*100).toFixed(1)}%` },
+  addons: { label: 'Add-Ons',      metricHead: 'Add-Ons / GC',         shareHead: '% of Dine In/Take Out/DT',
+            sortBy: r=>r.addonsPerGC, metric: r=>r.addonsPerGC.toFixed(2),
+            share: r=>`${(r.addonsOnPremShare*100).toFixed(1)}%` },
 };
 
 function uniqueVals(field, filterFn){
@@ -802,11 +802,19 @@ function renderMovers(codes, s0, e0, lyOffset){
     const gcTY = tyAgg.gc, gcLY = lyAgg.gc;
     const avgCheckTY = gcTY>0 ? ty/gcTY : 0;
     const avgCheckLY = gcLY>0 ? ly/gcLY : 0;
+    // CHANS is ['Drive Thru','Dine In','Pickup','Delivery'] — "Take Out" is folded into
+    // "Pickup" during aggregation, so Drive Thru + Dine In + Pickup together are the
+    // "Dine In / Take Out / Drive-Thru" (non-delivery, on-premise) sales the business asks for.
+    const onPremiseSales = (tyAgg.chans[0]||0) + (tyAgg.chans[1]||0) + (tyAgg.chans[2]||0);
     return {
       code, name: STORES[code][0], ty, ly, varPct, dtSales,
       dtShare: ty>0 ? dtSales/ty : 0,
       cheeseSales, cheeseShare: ty>0 ? cheeseSales/ty : 0,
       addonsSales, addonsShare: ty>0 ? addonsSales/ty : 0,
+      cheesePerGC: gcTY>0 ? cheeseSales/gcTY : 0,
+      addonsPerGC: gcTY>0 ? addonsSales/gcTY : 0,
+      cheeseOnPremShare: onPremiseSales>0 ? cheeseSales/onPremiseSales : 0,
+      addonsOnPremShare: onPremiseSales>0 ? addonsSales/onPremiseSales : 0,
       gcTY, gcLY, avgCheckTY, avgCheckLY,
     };
   }).filter(r=>r.ty>0 || r.ly>0);
