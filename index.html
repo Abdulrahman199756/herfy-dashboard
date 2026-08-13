@@ -793,17 +793,21 @@ function renderMovers(codes, s0, e0, lyOffset){
   rankingRows = codes.map(code=>{
     const set = new Set([code]);
     const tyAgg = aggregate(set, s0, e0);
-    const ly = aggregate(set, s0-lyOffset, e0-lyOffset).ns;
-    const ty = tyAgg.ns;
+    const lyAgg = aggregate(set, s0-lyOffset, e0-lyOffset);
+    const ty = tyAgg.ns, ly = lyAgg.ns;
     const varPct = ly>0 ? (ty-ly)/ly : (ty>0?1:0);
     const dtSales = tyAgg.chans[0]||0;
     const cheeseSales = CHEESE_IDX>=0 ? (tyAgg.groups[CHEESE_IDX]||0) : 0;
     const addonsSales = ADDONS_IDX>=0 ? (tyAgg.groups[ADDONS_IDX]||0) : 0;
+    const gcTY = tyAgg.gc, gcLY = lyAgg.gc;
+    const avgCheckTY = gcTY>0 ? ty/gcTY : 0;
+    const avgCheckLY = gcLY>0 ? ly/gcLY : 0;
     return {
       code, name: STORES[code][0], ty, ly, varPct, dtSales,
       dtShare: ty>0 ? dtSales/ty : 0,
       cheeseSales, cheeseShare: ty>0 ? cheeseSales/ty : 0,
       addonsSales, addonsShare: ty>0 ? addonsSales/ty : 0,
+      gcTY, gcLY, avgCheckTY, avgCheckLY,
     };
   }).filter(r=>r.ty>0 || r.ly>0);
 
@@ -867,21 +871,9 @@ function renderItems(){
 
 /* ===================== PDF REPORT ===================== */
 
-function rankingRowPlainShare(key, r){
-  // dt/cheese/addons share() already returns plain text; only 'ns' embeds HTML for on-screen color.
-  if (key !== 'ns') return RANKING_DEFS[key].share(r);
-  if (!(r.ly>0)) return fmtPct(r.varPct);
-  const delta = r.ty-r.ly, sign = delta>=0?'+':'';
-  return `${fmtPct(r.varPct)} (LY ${fmtNum(r.ly)}, ${sign}${fmtNum(delta)})`;
-}
-
-function addChartImage(doc, chartObj, x, y, maxW, maxH){
-  const canvas = chartObj.canvas;
-  const ratio = canvas.width / canvas.height;
-  let w = maxW, h = w / ratio;
-  if (h > maxH){ h = maxH; w = h * ratio; }
-  doc.addImage(chartObj.toBase64Image('image/png', 1.0), 'PNG', x, y, w, h);
-  return h;
+function fmtSignedNum(v, decimals){
+  const sign = v>=0 ? '+' : '';
+  return sign + v.toLocaleString('en-US', { minimumFractionDigits: decimals||0, maximumFractionDigits: decimals||0 });
 }
 
 function downloadPDFReport(){
@@ -894,7 +886,7 @@ function downloadPDFReport(){
   btn.disabled = true; btn.textContent = 'Generating...';
   try{
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit:'mm', format:'a4' });
+    const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'landscape' });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
     const margin = 14;
@@ -947,86 +939,50 @@ function downloadPDFReport(){
         metricRow('Drive-Thru % of Sales', dtPctTY, dtPctLY, true),
       ],
       margin: { left: margin, right: margin },
+      tableWidth: 140,
       theme: 'grid',
       headStyles: { fillColor: [20,20,23], textColor: 255, fontStyle: 'bold' },
       styles: { fontSize: 9, cellPadding: 2.5 },
       columnStyles: { 0: { fontStyle: 'bold' } },
     });
-    y = doc.lastAutoTable.finalY + 8;
+    y = doc.lastAutoTable.finalY + 10;
 
-    // ---- Charts ----
-    if (typeof Chart !== 'undefined' && charts.trend){
-      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(20,20,20);
-      doc.text('Net Sales Trend — TY vs LY', margin, y); y += 4;
-      y += addChartImage(doc, charts.trend, margin, y, pageW-2*margin, 55) + 8;
-
-      const halfW = (pageW - 2*margin - 8) / 2;
-      doc.text('Channel Mix', margin, y);
-      doc.text('Add-Ons & Meal Size', margin+halfW+8, y); y += 4;
-      const h2a = addChartImage(doc, charts.channel, margin, y, halfW, 55);
-      const h2b = addChartImage(doc, charts.group, margin+halfW+8, y, halfW, 55);
-      y += Math.max(h2a,h2b) + 8;
-
-      if (y > pageH-70){ doc.addPage(); y = margin; }
-      doc.text('Drive-Thru Share', margin, y); y += 4;
-      y += addChartImage(doc, charts.dt, margin, y, halfW, 50) + 8;
-    }
-
-    // ---- Store Rankings (new page) ----
-    doc.addPage(); y = margin;
-    doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(20,20,20);
-    doc.text('Store Rankings', margin, y); y += 6;
+    // ---- Store breakdown: Net Sales, Guest Count & Average Check vs LY ----
+    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(20,20,20);
+    doc.text('Store Breakdown — Net Sales, Guest Count & Average Check vs Last Year', margin, y);
+    y += 6;
 
     if (rankingRows.length){
-      [['ns','By Net Sales (Var % vs LY)'], ['dt','By Drive-Thru Share'],
-       ['cheese','By Extra Cheese Share'], ['addons','By Add-Ons Share']].forEach(([key,title])=>{
-        if (y > pageH-40){ doc.addPage(); y = margin; }
-        doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(20,20,20);
-        doc.text(title, margin, y); y += 3;
-        const def = RANKING_DEFS[key];
-        const ranked = rankingRows.slice().sort((a,b)=>def.sortBy(b)-def.sortBy(a));
-        doc.autoTable({
-          startY: y+2,
-          head: [['#','Store', def.metricHead, def.shareHead]],
-          body: ranked.map((r,i)=>[String(i+1), `${r.code} - ${r.name}`, def.metric(r), rankingRowPlainShare(key,r)]),
-          margin: { left: margin, right: margin },
-          theme: 'striped',
-          headStyles: { fillColor: [20,20,23], textColor: 255, fontSize: 8 },
-          styles: { fontSize: 8, cellPadding: 1.8 },
-          columnStyles: { 0: { cellWidth: 8 } },
-        });
-        y = doc.lastAutoTable.finalY + 8;
+      const ranked = rankingRows.slice().sort((a,b)=>b.varPct-a.varPct);
+      doc.autoTable({
+        startY: y,
+        head: [['#','Store','Net Sales','NS Var %','NS Var (SAR)','GC Var %','GC Var','Avg Check Var %','Avg Check Var (SAR)']],
+        body: ranked.map((r,i)=>{
+          const gcVarPct = r.gcLY>0 ? (r.gcTY-r.gcLY)/r.gcLY : null;
+          const acVarPct = r.avgCheckLY>0 ? (r.avgCheckTY-r.avgCheckLY)/r.avgCheckLY : null;
+          return [
+            String(i+1),
+            `${r.code} - ${r.name}`,
+            fmtNum(r.ty),
+            r.ly>0 ? fmtPct(r.varPct) : 'n/a',
+            r.ly>0 ? fmtSignedNum(r.ty-r.ly) : 'n/a',
+            gcVarPct!==null ? fmtPct(gcVarPct) : 'n/a',
+            r.gcLY>0 ? fmtSignedNum(r.gcTY-r.gcLY) : 'n/a',
+            acVarPct!==null ? fmtPct(acVarPct) : 'n/a',
+            r.avgCheckLY>0 ? fmtSignedNum(r.avgCheckTY-r.avgCheckLY, 1) : 'n/a',
+          ];
+        }),
+        margin: { left: margin, right: margin },
+        theme: 'striped',
+        headStyles: { fillColor: [20,20,23], textColor: 255, fontSize: 8 },
+        styles: { fontSize: 8, cellPadding: 2 },
+        columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 62 } },
       });
+      y = doc.lastAutoTable.finalY;
     } else {
       doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(110,110,110);
-      doc.text('Select "All Stores" (or a broader area/city/type) to include store rankings.', margin, y);
-      y += 8;
+      doc.text('Select "All Stores" (or a broader area/city/type) to include the store breakdown.', margin, y);
     }
-
-    // ---- Item Performance (new page) ----
-    doc.addPage(); y = margin;
-    doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(20,20,20);
-    let itemRows = [], itemTitle;
-    if (storeV==='ALL'){
-      const mIdx = parseInt(document.getElementById('fMonth').value,10);
-      itemRows = ITEM_MONTH.filter(r=>r[0]===mIdx).map(r=>({item:ITEMS[r[1]], cat:r[2]>=0?CATS[r[2]]:'—', qty:r[3], ns:r[4]}));
-      itemTitle = `Item Performance — ${MONTHS[mIdx]} (Company-wide)`;
-    } else {
-      itemRows = ITEM_STORE.filter(r=>r[0]===parseInt(storeV,10)).map(r=>({item:ITEMS[r[1]], cat:r[2]>=0?CATS[r[2]]:'—', qty:r[3], ns:r[4]}));
-      itemTitle = `Item Performance — ${storeV} - ${STORES[storeV][0]} (All-Time)`;
-    }
-    itemRows.sort((a,b)=> itemSortKey==='ns' ? b.ns-a.ns : b.qty-a.qty);
-    itemRows = itemRows.slice(0,20);
-    doc.text(itemTitle, margin, y); y += 6;
-    doc.autoTable({
-      startY: y,
-      head: [['#','Item','Category','Qty Sold','Net Sales']],
-      body: itemRows.map((r,i)=>[String(i+1), r.item, r.cat, fmtNum(r.qty), fmtSAR(r.ns)]),
-      margin: { left: margin, right: margin },
-      theme: 'striped',
-      headStyles: { fillColor: [20,20,23], textColor: 255, fontSize: 9 },
-      styles: { fontSize: 8.5, cellPadding: 2 },
-    });
 
     // ---- Footer on every page ----
     const pageCount = doc.internal.getNumberOfPages();
